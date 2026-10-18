@@ -7,10 +7,6 @@
 [![Delta Lake: 3.2](https://img.shields.io/badge/Delta_Lake-3.2-00A98F.svg)](pyproject.toml)
 [![Redpanda: Kafka](https://img.shields.io/badge/Redpanda-Kafka_API-FF4655.svg)](docker-compose.yml)
 
-> **Portfolio Project 2 of 3 | Streaming Data Engineering**  
-> *Kafka + PySpark Structured Streaming + Delta Lake | $0 Stack*  
-> Companion project to [dukastack](https://github.com/paulakelo/dukastack) (Retail Analytics Warehouse).
-
 ---
 
 ## 1. Problem Statement
@@ -172,9 +168,3 @@ make down
 ```
 
 ---
-
-## 7. Connection to Dukastack
-
-Rekon forms **Portfolio Project 2 of 3** in Paula's data engineering series. It is directly connected to [dukastack](https://github.com/paulakelo/dukastack):
-- **Shared Order Reference Scheme**: Both projects standardize on the `ORD-xxxxxxxx` order reference format.
-- **Billed vs. Collected Reconciliation**: While `dukastack` models point-of-sale operational transactions and dimensional revenue metrics, `rekon` solves the external payment verification problem (closing the loop between POS invoices and digital cash collected).
