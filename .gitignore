@@ -1,0 +1,38 @@
+# Virtual environments and dependencies
+.venv/
+venv/
+env/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing and linting
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local Delta Lake storage, checkpoints, and Kafka data
+data/
+checkpoints/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Receiver logs & temporary files
+*.log
+
+# Developer checklists & private progress notes (following dukastack convention)
+CHECKLIST.md
+checklist.md
+BREAKDOWN.md
+breakdown.md
+
+# System & IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
