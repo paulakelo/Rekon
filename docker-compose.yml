@@ -14,12 +14,25 @@ services:
       - "9092:9092"
       - "9644:9644"
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster health | grep -E 'HEALTHY|OK'"]
-      interval: 5s
-      timeout: 5s
+      test: ["CMD-SHELL", "rpk cluster health | grep -i 'healthy:.*true'"]
+      interval: 3s
+      timeout: 3s
       retries: 5
     volumes:
       - redpanda_data:/var/lib/redpanda/data
+
+  receiver:
+    build:
+      context: .
+      dockerfile: receiver/Dockerfile
+    container_name: rekon-receiver
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
+    ports:
+      - "8000:8000"
+    depends_on:
+      redpanda:
+        condition: service_healthy
 
 volumes:
   redpanda_data:

@@ -34,7 +34,7 @@ setup:
 up:
 	docker compose up -d
 	@echo "Waiting for Redpanda Kafka broker to become healthy..."
-	@until docker compose exec -T redpanda rpk cluster health | grep -E 'HEALTHY|OK' >/dev/null 2>&1; do \
+	@until docker compose exec -T redpanda rpk cluster health | grep -i 'healthy:.*true' >/dev/null 2>&1; do \
 		sleep 1; \
 	done
 	@echo "Creating Kafka topics: orders.created, payments.mpesa.raw, payments.bank.raw..."

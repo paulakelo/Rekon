@@ -36,3 +36,6 @@ breakdown.md
 .idea/
 .vscode/
 *.swp
+
+# Antigravity IDE agent config
+.agents/
