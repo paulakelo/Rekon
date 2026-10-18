@@ -1,6 +1,6 @@
 # Rekon: Streaming Payment Reconciliation Engine
 
-[![CI](https://github.com/paulakelo/rekon/actions/workflows/ci.yml/badge.svg)](https://github.com/paulakelo/rekon/actions/workflows/ci.yml)
+[![CI](https://github.com/paulakelo/Rekon/actions/workflows/ci.yml/badge.svg)](https://github.com/paulakelo/Rekon/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.11](https://img.shields.io/badge/Python-3.11-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
 [![Apache Spark: 3.5](https://img.shields.io/badge/Apache_Spark-3.5-E25A1C.svg?logo=apachespark&logoColor=white)](pyproject.toml)
@@ -145,8 +145,8 @@ Rekon is verified against 11 real-world payment edge cases:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/paulakelo/rekon.git
-cd rekon
+git clone https://github.com/paulakelo/Rekon.git
+cd Rekon
 
 # 2. Setup virtual environment & dependencies
 make setup

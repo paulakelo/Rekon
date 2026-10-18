@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 packages = ["simulator", "receiver", "streaming"]
 
 [project]
-name = "rekon"
+name = "Rekon"
 version = "0.1.0"
 description = "A local, zero-cost streaming payment reconciliation engine with Kafka, PySpark Structured Streaming, and Delta Lake."
 readme = "README.md"
