@@ -19,6 +19,9 @@ def merge_silver_payments(
     """
     from delta.tables import DeltaTable
 
+    # Intra-batch deduplication: keep first occurrence within microbatch
+    microbatch_df = microbatch_df.dropDuplicates(["rail", "rail_receipt_id"])
+
     # Check if target Delta table exists
     if not DeltaTable.isDeltaTable(spark, silver_table_path):
         microbatch_df.write.format("delta").mode("overwrite").save(silver_table_path)
