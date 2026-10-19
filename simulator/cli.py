@@ -1,9 +1,17 @@
-"""Command-line interface for the Rekon payment stream simulator."""
+"""Command-line interface for the Rekon payment stream simulator.
+
+Provides subcommands:
+- generate: Produce deterministic JSON files for offline testing and replays.
+- stream: Stream events in real-time over HTTP to the edge receiver.
+- demo: Run the local PySpark reconciliation pipeline against simulated data.
+"""
 
 import argparse
 import json
 import logging
+import time
 from pathlib import Path
+from typing import Any
 
 from simulator.chaos import ChaosInjector
 from simulator.clock import VirtualClock
@@ -111,21 +119,10 @@ def generate_dataset(
         clock.advance_minutes(10.0)
 
     # Invert order & payment for C3 (Pre-payment emitted before order creation):
-    # Payment for an order that will be generated later
     early_order_ref = f"ORD-{(num_orders + 1):08d}"
-    early_pay = payment_gen.generate_mpesa_payment(early_order_ref, 4500.0)
+    early_pay, early_order = chaos.create_inversion(early_order_ref, 4500.0, hours_early=2.0)
     mpesa_payments.insert(0, early_pay)
     chaos_events.append({"scenario": "C3_INVERSION_PRE_PAYMENT", "order_ref": early_order_ref})
-
-    # Add the corresponding order later in the sequence
-    clock.advance_hours(2.0)
-    early_order = {
-        "order_ref": early_order_ref,
-        "shop_id": "SHOP-002-WESTLANDS",
-        "amount_kes": 4500.0,
-        "currency": "KES",
-        "created_at": clock.now_iso(),
-    }
     orders.append(early_order)
 
     # C5: Orphan payment (payment referencing nonexistent order)
@@ -152,6 +149,163 @@ def generate_dataset(
         "payments_bank": bank_payments,
         "chaos_events": chaos_events,
     }
+
+
+def stream_dataset(
+    num_orders: int = 30,
+    seed: int = 42,
+    target_url: str = "http://localhost:8000",
+    interval: float = 0.05,
+    dry_run: bool = False,
+    include_malformed: bool = True,
+) -> dict[str, Any]:
+    """Stream simulated events directly to HTTP receiver endpoints.
+
+    Emits events in realistic order:
+    1. C3 Pre-payment is emitted before its corresponding order
+    2. Regular orders are emitted to /api/v1/orders
+    3. M-Pesa callbacks are emitted to /api/v1/payments/mpesa
+    4. Bank callbacks are emitted to /api/v1/payments/bank
+    5. C5 Orphan payments and C9 Malformed payloads are dispatched
+    """
+    dataset = generate_dataset(num_orders=num_orders, seed=seed)
+    orders = dataset["orders"]
+    mpesa_payments = dataset["payments_mpesa"]
+    bank_payments = dataset["payments_bank"]
+
+    mpesa_by_order: dict[str, list[dict]] = {}
+    for p in mpesa_payments:
+        ref = p.get("BillRefNumber", "UNKNOWN") if isinstance(p, dict) else "UNKNOWN"
+        mpesa_by_order.setdefault(ref, []).append(p)
+
+    bank_by_order: dict[str, list[dict]] = {}
+    for p in bank_payments:
+        ref = p.get("order_reference", "UNKNOWN")
+        bank_by_order.setdefault(ref, []).append(p)
+
+    summary = {
+        "orders_sent": 0,
+        "mpesa_sent": 0,
+        "bank_sent": 0,
+        "malformed_sent": 0,
+        "errors": 0,
+    }
+
+    client = None
+    if not dry_run:
+        import httpx
+
+        client = httpx.Client(base_url=target_url, timeout=10.0)
+        try:
+            resp = client.get("/health")
+            resp.raise_for_status()
+            logger.info("Connected to receiver at %s: %s", target_url, resp.json())
+        except Exception as exc:
+            logger.error("Receiver unavailable at %s: %s", target_url, exc)
+            raise ConnectionError(f"Receiver at {target_url} unreachable: {exc}") from exc
+
+    def emit_order(o: dict):
+        if not dry_run and client:
+            resp = client.post("/api/v1/orders", json=o)
+            if resp.status_code != 201:
+                summary["errors"] += 1
+                logger.warning("Order %s failed with %s", o["order_ref"], resp.status_code)
+            else:
+                summary["orders_sent"] += 1
+        else:
+            summary["orders_sent"] += 1
+        if interval > 0:
+            time.sleep(interval)
+
+    def emit_mpesa(p: dict | str):
+        if not dry_run and client:
+            if isinstance(p, str):
+                resp = client.post(
+                    "/api/v1/payments/mpesa",
+                    content=p,
+                    headers={"Content-Type": "application/json"},
+                )
+                summary["malformed_sent"] += 1
+            else:
+                resp = client.post("/api/v1/payments/mpesa", json=p)
+                summary["mpesa_sent"] += 1
+            if resp.status_code != 200:
+                summary["errors"] += 1
+        else:
+            if isinstance(p, str):
+                summary["malformed_sent"] += 1
+            else:
+                summary["mpesa_sent"] += 1
+        if interval > 0:
+            time.sleep(interval)
+
+    def emit_bank(p: dict):
+        if not dry_run and client:
+            resp = client.post("/api/v1/payments/bank", json=p)
+            if resp.status_code != 200:
+                summary["errors"] += 1
+            else:
+                summary["bank_sent"] += 1
+        else:
+            summary["bank_sent"] += 1
+        if interval > 0:
+            time.sleep(interval)
+
+    # 1. C3 Pre-payment: payment arrives before order is created
+    early_order_ref = orders[-1]["order_ref"]
+    if early_order_ref in mpesa_by_order:
+        for p in mpesa_by_order.pop(early_order_ref):
+            logger.info(
+                "[STREAM] C3 Inversion: Emitting early payment for %s before order creation",
+                early_order_ref,
+            )
+            emit_mpesa(p)
+
+    # 2. Regular orders and their matching payments
+    for order in orders[:-1]:
+        logger.info(
+            "[STREAM] Emitting order %s (%.2f KES)", order["order_ref"], order["amount_kes"]
+        )
+        emit_order(order)
+        ref = order["order_ref"]
+        for p in mpesa_by_order.pop(ref, []):
+            logger.info("[STREAM] Emitting M-Pesa payment for %s", ref)
+            emit_mpesa(p)
+        for p in bank_by_order.pop(ref, []):
+            logger.info("[STREAM] Emitting Bank payment for %s", ref)
+            emit_bank(p)
+
+    # 3. Delayed order for C3
+    logger.info("[STREAM] C3 Inversion: Now emitting delayed order %s", early_order_ref)
+    emit_order(orders[-1])
+
+    # 4. C5 Orphan payment (BillRefNumber == 'ORD-99999999')
+    for p in mpesa_by_order.pop("ORD-99999999", []):
+        logger.info("[STREAM] C5 Orphan: Emitting orphan payment referencing ORD-99999999")
+        emit_mpesa(p)
+
+    # Any remaining payments
+    for _ref, p_list in mpesa_by_order.items():
+        for p in p_list:
+            emit_mpesa(p)
+    for _ref, p_list in bank_by_order.items():
+        for p in p_list:
+            emit_bank(p)
+
+    # 5. C9 Malformed payload
+    if include_malformed:
+        malformed = (
+            '{"TransactionType": "Pay Bill", "TransID": "RKT-CORRUPTED", '
+            '"TransAmount": 500, UNCLOSED_JSON'
+        )
+        logger.info("[STREAM] C9 Malformed: Emitting malformed payload")
+        emit_mpesa(malformed)
+
+    if client:
+        client.close()
+
+    logger.info("Streaming complete: %s", summary)
+    return summary
 
 
 def run_demo(seed: int = 42, num_orders: int = 30):
@@ -186,6 +340,19 @@ def main():
     gen_parser.add_argument("--seed", type=int, default=42, help="Random seed for determinism")
     gen_parser.add_argument("--output", type=str, default="data/simulated", help="Output directory")
 
+    stream_parser = subparsers.add_parser("stream", help="Stream events over HTTP to receiver")
+    stream_parser.add_argument("--orders", type=int, default=30, help="Number of orders to stream")
+    stream_parser.add_argument("--seed", type=int, default=42, help="Random seed for determinism")
+    stream_parser.add_argument(
+        "--interval", type=float, default=0.05, help="Interval (seconds) between events"
+    )
+    stream_parser.add_argument(
+        "--target", type=str, default="http://localhost:8000", help="Receiver base URL"
+    )
+    stream_parser.add_argument(
+        "--dry-run", action="store_true", help="Simulate without network transmission"
+    )
+
     demo_parser = subparsers.add_parser("demo", help="Run end-to-end demo reconciliation flow")
     demo_parser.add_argument("--orders", type=int, default=25, help="Number of orders to demo")
     demo_parser.add_argument("--seed", type=int, default=42, help="Random seed for demo")
@@ -194,6 +361,14 @@ def main():
 
     if args.command == "generate":
         generate_dataset(num_orders=args.orders, seed=args.seed, output_dir=Path(args.output))
+    elif args.command == "stream":
+        stream_dataset(
+            num_orders=args.orders,
+            seed=args.seed,
+            target_url=args.target,
+            interval=args.interval,
+            dry_run=args.dry_run,
+        )
     elif args.command == "demo":
         run_demo(seed=args.seed, num_orders=args.orders)
     else:

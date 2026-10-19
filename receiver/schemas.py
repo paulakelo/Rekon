@@ -1,6 +1,5 @@
 """Pydantic schemas and serialization models for Rekon edge webhook receiver."""
 
-
 from pydantic import BaseModel, Field
 
 

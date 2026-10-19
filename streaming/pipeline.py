@@ -3,10 +3,10 @@
 import json
 import logging
 import os
-from pathlib import Path
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from pyspark.sql import SparkSession
@@ -35,7 +35,7 @@ logger = logging.getLogger("rekon.streaming.pipeline")
 
 
 def ensure_java_compatibility():
-    """Ensure JAVA_HOME points to a Spark-compatible JVM (Java 11 or 17) and Python worker matches driver."""
+    """Ensure JAVA_HOME points to a Spark JVM (Java 11/17) and Python matches driver."""
     os.environ["PYSPARK_PYTHON"] = sys.executable
     os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 

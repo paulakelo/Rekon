@@ -48,6 +48,21 @@ class ChaosInjector:
 
         return [first, second]
 
+    def create_inversion(
+        self, order_ref: str, amount: float, hours_early: float = 2.0
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Scenario C3: Inversion (Payment emitted before Order creation)."""
+        payment = self.payment_gen.generate_mpesa_payment(order_ref=order_ref, amount=amount)
+        self.clock.advance_hours(hours_early)
+        order = {
+            "order_ref": order_ref,
+            "shop_id": "SHOP-002-WESTLANDS",
+            "amount_kes": amount,
+            "currency": "KES",
+            "created_at": self.clock.now_iso(),
+        }
+        return payment, order
+
     def create_split_payments(
         self,
         order_ref: str,
