@@ -1,4 +1,4 @@
-.PHONY: help setup up down receiver demo test replay report lint fmt clean
+.PHONY: help setup up down receiver demo test replay report sweep lint fmt clean
 
 PYTHON ?= python3.11
 VENV ?= .venv
@@ -16,6 +16,7 @@ help:
 	@echo "  make test      - Run all unit, integration, and chaos scenario tests"
 	@echo "  make replay    - Wipe checkpoints and replay from Bronze to verify idempotency"
 	@echo "  make report    - Show status report of Gold order reconciliation & anomalies"
+	@echo "  make sweep     - Run periodic reconciliation sweep (window expiry & OPTIMIZE)"
 	@echo "  make lint      - Run ruff linter"
 	@echo "  make fmt       - Format Python source files"
 	@echo "  make clean     - Clean local Delta tables, checkpoints, logs, and caches"
@@ -58,6 +59,9 @@ replay:
 
 report:
 	$(BIN)/python -m streaming.report
+
+sweep:
+	$(BIN)/python -m streaming.sweep
 
 lint:
 	$(BIN)/ruff check .

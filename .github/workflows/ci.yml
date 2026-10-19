@@ -21,22 +21,26 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Set up Java 17 (for PySpark & Delta Lake)
+      - name: Set up Java 11 (for PySpark & Delta Lake)
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
-          java-version: "17"
+          java-version: "11"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run Python linter (ruff)
+      - name: Run Python linter & formatter check (ruff)
         run: |
           ruff check .
           ruff format --check .
 
-      - name: Run unit & scenario tests
+      - name: Run unit tests
         run: |
-          pytest tests/ -v
+          pytest tests/unit/ -v
+
+      - name: Run 11-scenario chaos tests
+        run: |
+          pytest tests/scenarios/ -v
