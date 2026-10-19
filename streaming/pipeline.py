@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
@@ -149,6 +150,15 @@ class ReconciliationPipeline:
     def process_silver(self) -> dict[str, int]:
         """Process Bronze data into Silver tables with normalization and dedupe."""
         start_time = time.time()
+        if not DeltaTable.isDeltaTable(self.spark, self.bronze_orders_path):
+            self.spark.createDataFrame([], schema=BRONZE_ORDERS_SCHEMA).write.format("delta").mode(
+                "ignore"
+            ).save(self.bronze_orders_path)
+        if not DeltaTable.isDeltaTable(self.spark, self.bronze_payments_path):
+            self.spark.createDataFrame([], schema=BRONZE_PAYMENTS_SCHEMA).write.format(
+                "delta"
+            ).mode("ignore").save(self.bronze_payments_path)
+
         bronze_payments_df = self.spark.read.format("delta").load(self.bronze_payments_path)
         bronze_orders_df = self.spark.read.format("delta").load(self.bronze_orders_path)
 
@@ -267,6 +277,15 @@ class ReconciliationPipeline:
     def process_gold(self, is_window_expired: bool = False) -> None:
         """Aggregate Silver data to generate Gold marts and anomalies."""
         now = datetime.now()
+        if not DeltaTable.isDeltaTable(self.spark, self.silver_orders_path):
+            self.spark.createDataFrame([], schema=SILVER_ORDERS_SCHEMA).write.format("delta").mode(
+                "ignore"
+            ).save(self.silver_orders_path)
+        if not DeltaTable.isDeltaTable(self.spark, self.silver_payments_path):
+            self.spark.createDataFrame([], schema=SILVER_PAYMENTS_SCHEMA).write.format(
+                "delta"
+            ).mode("ignore").save(self.silver_payments_path)
+
         silver_orders_df = self.spark.read.format("delta").load(self.silver_orders_path)
         silver_payments_df = self.spark.read.format("delta").load(self.silver_payments_path)
 
