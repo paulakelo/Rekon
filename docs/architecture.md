@@ -194,3 +194,4 @@ sequenceDiagram
 | **ADR 0004** | FastAPI Edge Receiver & Zero-Loss Ingestion | Immediate 200 OK edge responses; forward raw payloads directly to Kafka without edge rejection. |
 | **ADR 0005** | Salted SHA-256 PII Masking | Salt and hash customer phone numbers and accounts before insertion into `silver_payments`. |
 | **ADR 0006** | Checkpointed Delta Structured Streaming | Implement `trigger(availableNow=True)` alongside continuous mode for deterministic CI and batch executions. |
+| **ADR 0007** | Periodic Sweep Finalization & Storage Compaction | Decouple streaming ingestion from window expiry (UNDERPAID, ORPHAN) and execute periodic Delta OPTIMIZE. |
