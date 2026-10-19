@@ -7,8 +7,10 @@ from datetime import datetime
 from typing import Any
 
 from pyspark.sql.types import (
+    DateType,
     DoubleType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
@@ -124,6 +126,31 @@ GOLD_ANOMALIES_SCHEMA = StructType(
         StructField("order_ref", StringType(), True),
         StructField("detected_at", TimestampType(), False),
         StructField("details", StringType(), True),
+    ]
+)
+
+GOLD_DAILY_SCHEMA = StructType(
+    [
+        StructField("recon_date", DateType(), False),
+        StructField("billed_amount_kes", DoubleType(), True),
+        StructField("collected_amount_kes", DoubleType(), True),
+        StructField("billed_orders_count", LongType(), True),
+        StructField("paid_orders_count", LongType(), True),
+        StructField("partial_orders_count", LongType(), True),
+        StructField("unpaid_orders_count", LongType(), True),
+        StructField("overpaid_orders_count", LongType(), True),
+        StructField("underpaid_orders_count", LongType(), True),
+    ]
+)
+
+GOLD_THROUGHPUT_SCHEMA = StructType(
+    [
+        StructField("rail", StringType(), False),
+        StructField("window_start", TimestampType(), False),
+        StructField("window_end", TimestampType(), False),
+        StructField("transaction_count", LongType(), False),
+        StructField("total_amount_kes", DoubleType(), False),
+        StructField("avg_amount_kes", DoubleType(), False),
     ]
 )
 
