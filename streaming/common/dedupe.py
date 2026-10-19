@@ -31,26 +31,36 @@ def merge_silver_payments(
     target_df = delta_target.toDF()
 
     # Identify duplicate conflicts (matching rail + receipt, but differing amount)
-    joined = microbatch_df.alias("s").join(
-        target_df.alias("t"),
-        (microbatch_df["rail"] == target_df["rail"])
-        & (microbatch_df["rail_receipt_id"] == target_df["rail_receipt_id"]),
-        "inner",
+    joined = (
+        microbatch_df.alias("s")
+        .join(
+            target_df.alias("t"),
+            (microbatch_df["rail"] == target_df["rail"])
+            & (microbatch_df["rail_receipt_id"] == target_df["rail_receipt_id"]),
+            "inner",
+        )
+        .select(
+            microbatch_df["rail"].alias("rail"),
+            microbatch_df["rail_receipt_id"].alias("rail_receipt_id"),
+            microbatch_df["order_ref"].alias("order_ref"),
+            target_df["amount_kes"].alias("existing_amount"),
+            microbatch_df["amount_kes"].alias("conflicting_amount"),
+        )
     )
 
-    conflicts = joined.filter("abs(s.amount_kes - t.amount_kes) > 0.01").collect()
+    conflicts = joined.filter("abs(conflicting_amount - existing_amount) > 0.01").collect()
     conflict_anomalies = []
     for row in conflicts:
         anomaly = {
-            "rail": row["s.rail"],
-            "rail_receipt_id": row["s.rail_receipt_id"],
-            "order_ref": row["s.order_ref"],
-            "existing_amount": row["t.amount_kes"],
-            "conflicting_amount": row["s.amount_kes"],
+            "rail": row["rail"],
+            "rail_receipt_id": row["rail_receipt_id"],
+            "order_ref": row["order_ref"],
+            "existing_amount": row["existing_amount"],
+            "conflicting_amount": row["conflicting_amount"],
         }
         conflict_anomalies.append(anomaly)
         logger.warning(
-            "Duplicate conflict detected on receipt %s: %s", row["s.rail_receipt_id"], anomaly
+            "Duplicate conflict detected on receipt %s: %s", row["rail_receipt_id"], anomaly
         )
 
     # Perform idempotent MERGE: WHEN NOT MATCHED THEN INSERT
@@ -74,6 +84,9 @@ def merge_silver_orders(
 ) -> int:
     """Idempotently MERGE orders into silver_orders Delta table on order_ref."""
     from delta.tables import DeltaTable
+
+    # Intra-batch deduplication on order_ref
+    orders_df = orders_df.dropDuplicates(["order_ref"])
 
     if not DeltaTable.isDeltaTable(spark, silver_orders_path):
         orders_df.write.format("delta").mode("overwrite").save(silver_orders_path)
